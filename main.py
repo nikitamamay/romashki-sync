@@ -5,6 +5,7 @@ import config_reader
 
 import file_watcher
 
+import gui
 
 ### Loading config
 
@@ -36,10 +37,15 @@ print("Newer on PC (Upload to cloud):", pc_to_cloud)
 print("Older on PC (Remove from cloud OR Download to PC):", cloud_to_pc)
 
 
-for path_rel in pc_to_cloud:
-    file_watcher.copy_file(CONFIG["local_folder_path"] + os.path.sep + path_rel, CONFIG["gdrive_folder_path"] + os.path.sep + path_rel)
+# for path_rel in pc_to_cloud:
+#     file_watcher.copy_file(CONFIG["local_folder_path"] + os.path.sep + path_rel, CONFIG["gdrive_folder_path"] + os.path.sep + path_rel)
 
-for path_rel in cloud_to_pc:
-    file_watcher.copy_file(CONFIG["gdrive_folder_path"] + os.path.sep + path_rel, CONFIG["local_folder_path"] + os.path.sep + path_rel)
+# for path_rel in cloud_to_pc:
+#     file_watcher.copy_file(CONFIG["gdrive_folder_path"] + os.path.sep + path_rel, CONFIG["local_folder_path"] + os.path.sep + path_rel)
+
+app = gui.Application([])
+
+window = gui.MainWindow()
 
 
+exit(app.exec())
