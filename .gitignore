@@ -1,6 +1,5 @@
 # User config files
-config/*
-!config/default.cfg
+*.cfg
 
 
 # Byte-compiled / optimized / DLL files
