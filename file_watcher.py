@@ -179,14 +179,56 @@ class DirectoryWatcher():
     def __init__(self, path: str, fc: FilesCollection) -> None:
         self.path = path
         self.fc: FilesCollection = fc
+        self.is_active = False
+        self.t: threading.Thread = None
 
-    def find_change(self) -> list[File]:
+    def find_change(self) -> list[list[File]]:
         fc_new = self.read_directory()
-        l = fc_new.find_newer(self.fc)
-        return l
+        to_load = FilesCollection.find_newer(fc_new, self.fc)
+        to_delete = FilesCollection.find_newer(self.fc, fc_new)
+        return [to_load, to_delete]
 
     def read_directory(self) -> FilesCollection:
         return FilesCollection(self.path)
+
+    def watch(self, interval_function, interval_ms: int):
+        self.is_active = True
+
+        def func():
+            while self.is_active:
+                to_load, to_del = self.find_change()
+                interval_function(to_load, to_del)
+                sleep(interval_ms / 1000)
+
+        self.t = threading.Thread(target=func)
+        self.t.start()
+
+    def turn_off(self):
+        self.is_active = False
+        self.t.join()
+
+
+class ThreadedTimer():
+    def __init__(self, interval_ms: int, handlers = []) -> None:
+        self.handlers = handlers
+        self.interval_ms: int = interval_ms
+
+        def func():
+            while self.is_active:
+                print("hey")
+                for f in self.handlers:
+                    f()
+                sleep(self.interval_ms / 1000)
+        self.thread = threading.Thread(target=func)
+
+    def start(self):
+        self.is_active = True
+        self.thread.start()
+
+    def join(self):
+        self.is_active = False
+        self.thread.join()
+
 
 
 def copy_file(path_from, path_to):
@@ -198,23 +240,6 @@ def copy_file(path_from, path_to):
 
 
 
-def watch_directory(dw: DirectoryWatcher, interval_function, interval_ms: int):
-    flag = {"state": True}
-
-    def func():
-        while flag["state"]:
-            l: list[File] = dw.find_change()
-            interval_function(l)
-            sleep(interval_ms / 1000)
-
-    t = threading.Thread(target=func)
-
-    def turn_off():
-        flag["state"] = False
-        t.join()
-
-    t.start()
-    return turn_off
 
 
 

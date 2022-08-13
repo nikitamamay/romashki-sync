@@ -1,6 +1,6 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-import file_watcher
+from file_watcher import DirectoryWatcher, File
 
 
 APP_NAME = "RomashkiSync"
@@ -36,17 +36,19 @@ class Application(QtWidgets.QApplication):
 
 
 class ChangeWidget(QtWidgets.QWidget):
-    def __init__(self, change_obj: file_watcher.File, parent = None) -> None:
+    def __init__(self, change_obj: File, parent = None) -> None:
         super().__init__(parent)
 
         self.change_obj = change_obj
 
-        self.label = QtWidgets.QLabel(self.change_obj.basename)
+        self.label = QtWidgets.QLabel(self.change_obj.basename())
         self.btn_accept = QtWidgets.QPushButton(icon.accept(), "Accept")
-        self.btn_deny = QtWidgets.QPushButton(icon.deny(), "Deny")
+        self.btn_deny = QtWidgets.QPushButton(icon.deny(), "Deny (Ignore)")
 
         self.layout_ = QtWidgets.QHBoxLayout()
-        self.layout_.addWidget(self.label)
+        self.layout_.setSpacing(1)
+        self.layout_.setContentsMargins(0, 0, 0, 0)
+        self.layout_.addWidget(self.label, stretch=1)
         self.layout_.addWidget(self.btn_accept)
         self.layout_.addWidget(self.btn_deny)
         self.setLayout(self.layout_)
@@ -66,6 +68,7 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
 
 class MainWindow(QtWidgets.QMainWindow):
     exitSignal = QtCore.pyqtBoundSignal()
+    changeSignal = QtCore.pyqtBoundSignal()
 
     def __init__(self, parent = None) -> None:
         super().__init__(parent)
@@ -93,6 +96,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setMenuBar(self.menubar)
 
+        self.layout_ = QtWidgets.QVBoxLayout()
+        self.layout_.setSpacing(1)
+        self.layout_.setContentsMargins(0, 0, 0, 0)
+        self.layout_.setAlignment(QtCore.Qt.AlignTop)
+
+        self.groupBox = QtWidgets.QGroupBox("Local")
+        self.groupBox.setLayout(self.layout_)
+        self.setCentralWidget(self.groupBox)
+
+        self.dw: DirectoryWatcher = None
+        self.is_active = True
+        self.startTimer(1000)
+
     def raiseOnTop(self):
         self.show()
         self.activateWindow()
@@ -118,4 +134,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tray_icon.hide()
         self.close()
 
+    def timerEvent(self, event: QtCore.QTimerEvent) -> None:
+        if self.is_active:
+            self.showChanges()
+        return super().timerEvent(event)
+
+    def clear(self):
+        for i in range(self.layout_.count()):
+            self.layout_.removeWidget(self.layout_.itemAt(0).widget())
+
+    def showChanges(self):
+        self.clear()
+        to_load, to_delete = self.dw.find_change()
+        for f in to_load:
+            w = ChangeWidget(f)
+            self.layout_.addWidget(w)
+        for f in to_delete:
+            w = ChangeWidget(f)
+            self.layout_.addWidget(w)
 

@@ -62,8 +62,11 @@ app = gui.Application([])
 
 window = gui.MainWindow()
 
+def f():
+    window.showChanges()
 
-turn_off = file_watcher.watch_directory(file_watcher.DirectoryWatcher(CONFIG["local_folder_path"], fc_local), lambda l: print(l), 10000)
+window.dw = file_watcher.DirectoryWatcher(CONFIG["local_folder_path"], fc_local)
+window.show()
 
 
 exit(app.exec())
