@@ -5,6 +5,7 @@ import os
 DEFAULT_CONFIG = {
     "local_folder_path": r"C:\RomashkiData\Project123",
     "gdrive_folder_path": r"G:\My Drive\RomashkiData\CloudProject123",
+    "files_info_path": r".files_info.json",
     "server_url": r"http://example.com",
     "personal_key": r"abcdef1234567890",
 }
@@ -17,6 +18,9 @@ def parse_config(config_data: str) -> None:
         if line.strip() != "":
             key, value = line.split("\t", 1)
             CONFIG[key] = value
+    CONFIG["local_folder_path"] = os.path.normpath(CONFIG["local_folder_path"])
+    CONFIG["gdrive_folder_path"] = os.path.normpath(CONFIG["gdrive_folder_path"])
+    CONFIG["files_info_path"] = os.path.normpath(CONFIG["files_info_path"])
 
 
 def read_config_file(filepath: os.PathLike):
