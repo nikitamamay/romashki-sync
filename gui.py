@@ -25,6 +25,10 @@ class icon():
         return QtGui.QIcon("icons/tick.png")
     def deny():
         return QtGui.QIcon("icons/cross.png")
+    def checkbox_on():
+        return QtGui.QIcon("icons/check_box.png")
+    def checkbox_off():
+        return QtGui.QIcon("icons/check_box_uncheck.png")
 
 
 class Application(QtWidgets.QApplication):
@@ -35,22 +39,33 @@ class Application(QtWidgets.QApplication):
         self.setApplicationDisplayName(APP_NAME)
 
 
-class ChangeWidget(QtWidgets.QWidget):
+class ScrollArea(QtWidgets.QScrollArea):
+    def __init__(self, widget: QtWidgets.QWidget = None, parent=None) -> None:
+        super().__init__(parent=parent)
+        self.setSizeAdjustPolicy(QtWidgets.QScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.setWidgetResizable(True)
+        if widget:
+            self.setWidget(widget)
+
+
+class ChangeRepresentationWidget(QtWidgets.QWidget):
     def __init__(self, change_obj: File, parent = None) -> None:
         super().__init__(parent)
 
         self.change_obj = change_obj
 
-        self.label = QtWidgets.QLabel(self.change_obj.basename())
-        self.btn_accept = QtWidgets.QPushButton(icon.accept(), "Accept")
-        self.btn_deny = QtWidgets.QPushButton(icon.deny(), "Deny (Ignore)")
+        self.label = QtWidgets.QLabel(self.change_obj.relpath)
+        self.label.setFont(QtGui.QFont("Consolas"))
+        self.label.setMinimumWidth(self.label.fontMetrics().width(self.label.text()))
+
+        self.checkbox = QtWidgets.QCheckBox()
+        self.checkbox.setChecked(True)
 
         self.layout_ = QtWidgets.QHBoxLayout()
         self.layout_.setSpacing(1)
         self.layout_.setContentsMargins(0, 0, 0, 0)
+        self.layout_.addWidget(self.checkbox)
         self.layout_.addWidget(self.label, stretch=1)
-        self.layout_.addWidget(self.btn_accept)
-        self.layout_.addWidget(self.btn_deny)
         self.setLayout(self.layout_)
 
 
@@ -73,6 +88,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(300, 100)
+        self.setGeometry(
+            self.screen().size().width() - 800 - 20,
+            self.screen().size().height() - 325 - 50,
+            800, 325)
 
         self.tray_icon = TrayIcon(self)
         self.tray_icon.show()
@@ -96,18 +115,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setMenuBar(self.menubar)
 
-        self.layout_ = QtWidgets.QVBoxLayout()
-        self.layout_.setSpacing(1)
-        self.layout_.setContentsMargins(0, 0, 0, 0)
-        self.layout_.setAlignment(QtCore.Qt.AlignTop)
+        self.layout_reprs = QtWidgets.QVBoxLayout()
+        self.layout_reprs.setSpacing(2)
+        self.layout_reprs.setContentsMargins(0, 0, 0, 0)
+        self.layout_reprs.setAlignment(QtCore.Qt.AlignTop)
 
-        self.groupBox = QtWidgets.QGroupBox("Local")
-        self.groupBox.setLayout(self.layout_)
-        self.setCentralWidget(self.groupBox)
+        self.group_box = QtWidgets.QWidget()
+        # self.group_box.setFlat(True)
+        self.group_box.setLayout(self.layout_reprs)
 
-        self.dw: DirectoryWatcher = None
-        self.is_active = True
-        self.startTimer(1000)
+        self.scroll_area = ScrollArea(self.group_box)
+
+        self.btn_select_all = QtWidgets.QPushButton(icon.checkbox_on(), "Select all")
+        self.btn_deselect_all = QtWidgets.QPushButton(icon.checkbox_off(), "Deselect all")
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addWidget(self.btn_select_all)
+        btn_layout.addWidget(self.btn_deselect_all)
+        btn_layout.addStretch(1)
+
+        self.c_widget = QtWidgets.QWidget()
+        self.gridlayout = QtWidgets.QGridLayout()
+        self.gridlayout.addLayout(btn_layout, 1, 1, 1, 1)
+        self.gridlayout.addWidget(self.scroll_area, 2, 1, 1, 1)
+        self.c_widget.setLayout(self.gridlayout)
+
+        self.setCentralWidget(self.c_widget)
+
+        # self.dw: DirectoryWatcher = None
+        # self.is_active = True
+        # self.startTimer(1000)
 
     def raiseOnTop(self):
         self.show()
@@ -130,9 +167,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hide()
 
     def exit(self):
+        self.close()
         self.exitSignal.emit()
         self.tray_icon.hide()
-        self.close()
 
     def timerEvent(self, event: QtCore.QTimerEvent) -> None:
         if self.is_active:
@@ -140,16 +177,50 @@ class MainWindow(QtWidgets.QMainWindow):
         return super().timerEvent(event)
 
     def clear(self):
-        for i in range(self.layout_.count()):
-            self.layout_.removeWidget(self.layout_.itemAt(0).widget())
+        for i in range(self.layout_reprs.count()):
+            self.layout_reprs.removeWidget(self.layout_reprs.itemAt(0).widget())
 
-    def showChanges(self):
+    def init_representations(self, l: list[File]):
         self.clear()
-        to_load, to_delete = self.dw.find_change()
-        for f in to_load:
-            w = ChangeWidget(f)
-            self.layout_.addWidget(w)
-        for f in to_delete:
-            w = ChangeWidget(f)
-            self.layout_.addWidget(w)
+        for f in l:
+            w = ChangeRepresentationWidget(f, self)
+            self.layout_reprs.addWidget(w)
 
+    # def showChanges(self):
+    #     self.clear()
+    #     to_load, to_delete = self.dw.find_change()
+    #     for f in to_load:
+    #         w = ChangeRepresentationWidget(f)
+    #         self.layout_.addWidget(w)
+    #     for f in to_delete:
+    #         w = ChangeRepresentationWidget(f)
+    #         self.layout_.addWidget(w)
+
+
+if __name__ == "__main__":
+    import file_watcher
+    import config_reader
+    import sys
+
+    CONFIG = config_reader.CONFIG
+
+    if len(sys.argv) != 2:
+        print("Error: config path is not specified!")
+        exit()
+
+    config_reader.read_config_file(sys.argv[1])
+
+
+    fc = file_watcher.FilesCollection(CONFIG["local_folder_path"])
+
+
+    app = Application([])
+
+    window = MainWindow()
+
+    window.init_representations(fc.files)
+
+
+    window.show()
+
+    exit(app.exec())
