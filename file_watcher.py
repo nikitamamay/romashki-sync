@@ -63,6 +63,15 @@ class File(IFile):
         f.size = int(d["size"])
         return f
 
+    def update(self, new_file: 'File') -> None:
+        """
+        Rewrites all data except for `parent`.
+        """
+        self.relpath = new_file.relpath
+        self.mod_ts = new_file.mod_ts
+        self.checksum = new_file.checksum
+        self.size = new_file.size
+
     def path_abs(self) -> str:
         return os.path.join(self.parent.path, self.relpath)
 
@@ -84,9 +93,10 @@ class File(IFile):
 
 
 class FilesCollection(IFilesCollection):
-    def __init__(self, path: str, auto_read: bool = True) -> None:
+    def __init__(self, path: str, auto_read: bool = True, ignore: list[str] = []) -> None:
         super().__init__()
         self.path: str = path
+        self.ignore: list[str] = ignore  # not used for now
         if auto_read:
             self.construct_files(self.path)
 
@@ -96,11 +106,12 @@ class FilesCollection(IFilesCollection):
         Recursive.
         """
         for entry in os.scandir(path):
-            if entry.is_file():
-                f = File.from_DirEntry(entry, self)
-                self.files.append(f)
-            elif entry.is_dir():
-                self.construct_files(entry.path)
+            # if not entry.path in self.ignore:
+                if entry.is_file():
+                    f = File.from_DirEntry(entry, self)
+                    self.files.append(f)
+                elif entry.is_dir():
+                    self.construct_files(entry.path)
 
     @staticmethod
     def empty(path: str):
@@ -115,6 +126,19 @@ class FilesCollection(IFilesCollection):
         """
         self.files.clear()
         self.files.extend(files)
+
+    def update_partially(self, updated_files: list[File]) -> None:
+        """
+        Updates (adds or rewrites) only files from `updated_files`.
+        """
+        for new_f in updated_files:
+            try:
+                f = self.get_by_relpath(new_f.relpath)
+                f.update(new_f)
+                f.parent = self
+            except:
+                self.files.append(new_f)
+                new_f.parent = self
 
     def has_relpath(self, relpath: str) -> bool:
         """
@@ -202,11 +226,12 @@ def save_files_info(path: str, fcs: FCs) -> None:
 
 
 class DirectoryWatcher():
-    def __init__(self, path: str, fc: FilesCollection) -> None:
+    def __init__(self, path: str, fc: FilesCollection, ignore: list[str] = []) -> None:
         self.path = path
         self.fc: FilesCollection = fc
         self.is_active = False
         self.t: threading.Thread = None
+        self.ignore: list[str] = ignore
 
     def find_change(self) -> list[list[File]]:
         """
@@ -220,7 +245,7 @@ class DirectoryWatcher():
         return [to_load, to_delete]
 
     def read_directory(self) -> FilesCollection:
-        return FilesCollection(self.path)
+        return FilesCollection(self.path, ignore=self.ignore)
 
 
 # class ThreadedTimer():
@@ -230,11 +255,10 @@ class DirectoryWatcher():
 
 #         def func() -> None:
 #             while self.is_active:
-#                 print("hey")
 #                 for f in self.handlers:
 #                     f()
 #                 sleep(self.interval_ms / 1000)
-#         self.thread = threading.Thread(target=func)
+#         self.thread = threading.Thread(target=func, daemon=True)
 
 #     def start(self) -> None:
 #         self.is_active = True
@@ -261,6 +285,9 @@ def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> Non
         copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
 
 
+# def commit(files: list[File], dw_from: DirectoryWatcher, dw_to: DirectoryWatcher) -> None:
+#     copy_files_array(files, dw_from.path, dw_to.path)
+#     dw_to.fc.update_partially(files)
 
 
 

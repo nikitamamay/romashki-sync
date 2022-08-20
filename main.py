@@ -1,6 +1,5 @@
 import sys
 import os
-from time import sleep
 
 import config_reader
 
@@ -15,58 +14,62 @@ CONFIG = config_reader.CONFIG
 if len(sys.argv) <= 1:
     raise Exception("Config file path is not specified")
 
-path = os.path.abspath(sys.argv[1])
+config_filepath = os.path.abspath(sys.argv[1])
 
-if not os.path.exists(path):
+if not os.path.exists(config_filepath):
     raise Exception("Specified config file doesn't exist!")
-if not os.path.isfile(path):
+if not os.path.isfile(config_filepath):
     raise Exception("Specified config file is not a file!")
 
-config_reader.read_config_file(path)
+config_reader.read_config_file(config_filepath)
 
 
-
-fcs = file_watcher.load_files_info(CONFIG["files_info_path"])
-if len(fcs) != 2:
+def look_for_changes():
     fc_local = file_watcher.FilesCollection(CONFIG["local_folder_path"])
     fc_gdrive = file_watcher.FilesCollection(CONFIG["gdrive_folder_path"])
-    file_watcher.save_files_info(CONFIG["files_info_path"], [fc_local, fc_gdrive])
-else:
-    fc_local, fc_gdrive = fcs
 
-### !!! "target" file list has to be synchronized through web-server !!!
-#target = files_gdrive
+    new_local = file_watcher.FilesCollection.find_newer(fc_local, fc_gdrive)
+    old_local = file_watcher.FilesCollection.find_newer(fc_gdrive, fc_local)
 
-# pc_to_cloud = file_watcher.find_newer(files_local, files_gdrive)
-# cloud_to_pc = file_watcher.find_newer(files_gdrive, files_local)
+    print("Newer on PC (Upload to cloud):", new_local)
+    print("Older on PC (Remove from cloud OR Download to PC):", old_local)
 
-# print("Newer on PC (Upload to cloud):", pc_to_cloud)
-# print("Older on PC (Remove from cloud OR Download to PC):", cloud_to_pc)
+    if len(new_local) > 0:
+        if input('Enter "yes" to copy new files from LOCAL to CLOUD.\nLocal --> Cloud\n> ') == "yes":
+            file_watcher.copy_files_array(new_local, fc_local.path, fc_gdrive.path)
+            print("Copied.")
+        else:
+            print("Abort.")
 
-
-# for path_rel in pc_to_cloud:
-#     file_watcher.copy_file(CONFIG["local_folder_path"] + os.path.sep + path_rel, CONFIG["gdrive_folder_path"] + os.path.sep + path_rel)
-
-# for path_rel in cloud_to_pc:
-#     file_watcher.copy_file(CONFIG["gdrive_folder_path"] + os.path.sep + path_rel, CONFIG["local_folder_path"] + os.path.sep + path_rel)
-
-
-# file_watcher.DirectoryWatcher()
+    if len(old_local) > 0:
+        if input('Enter "yes" to copy new files from CLOUD to LOCAL.\nCloud --> Local\n> ') == "yes":
+            file_watcher.copy_files_array(old_local, fc_gdrive.path, fc_local.path)
+            print("Copied.")
+        else:
+            print("Abort.")
 
 
 
 
+while True:
+    i = input("look for changes? > ")
+    if i == "exit":
+        exit()
+    look_for_changes()
 
 
-app = gui.Application([])
+# app = gui.Application([])
 
-window = gui.MainWindow()
+# window = gui.MainWindow()
 
-def f():
-    window.showChanges()
+# def f():
+#     window.showChanges()
 
-window.dw = file_watcher.DirectoryWatcher(CONFIG["local_folder_path"], fc_local)
-window.show()
+# window.dw = file_watcher.DirectoryWatcher(CONFIG["local_folder_path"], fc_local)
+# window.show()
 
 
-exit(app.exec())
+# exit(app.exec())
+
+
+
