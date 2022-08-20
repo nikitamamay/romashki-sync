@@ -4,10 +4,10 @@ if sys_platform != "win32":
 
 from hashlib import sha256 as hashlib_sha256
 import os
-import datetime
 import threading
 from time import sleep
 import json
+
 
 FCs = list['FilesCollection']
 
@@ -29,7 +29,7 @@ class IFile():
 class IFilesCollection():
     def __init__(self) -> None:
         self.path: str = None
-        self.files: list[File] = []
+        self.files: list[IFile] = []
 
     def get_by_relpath(self, relpath: str) -> IFile:
         pass
@@ -57,8 +57,10 @@ class File(IFile):
     @staticmethod
     def fromJSON(d: dict, parent: IFilesCollection) -> 'File':
         f = File(parent)
-        # No check ?
-        vars(f).update(d)
+        f.relpath = d["relpath"]
+        f.mod_ts = int(d["mod_ts"])
+        f.checksum = d["checksum"]
+        f.size = int(d["size"])
         return f
 
     def path_abs(self) -> str:
@@ -69,6 +71,9 @@ class File(IFile):
         return self.checksum
 
     def basename(self) -> str:
+        """
+        Returns an absolute path to the file's parent directory.
+        """
         return os.path.basename(self.path_abs())
 
     def __str__(self) -> str:
@@ -99,21 +104,42 @@ class FilesCollection(IFilesCollection):
 
     @staticmethod
     def empty(path: str):
+        """
+        Returns an empty FilesCollection with no initial auto-read of the directory `path`.
+        """
         return FilesCollection(path, False)
 
+    def update(self, files: list[File]) -> None:
+        """
+        Updates (clears and adds new `File` objects to) `self.files`.
+        """
+        self.files.clear()
+        self.files.extend(files)
+
     def has_relpath(self, relpath: str) -> bool:
+        """
+        Checks whether `self.files` has a `File` object with given `relpath`.
+        """
         for f in self.files:
             if f.relpath == relpath:
                 return True
         return False
 
     def get_by_relpath(self, relpath: str) -> File:
+        """
+        Returns a `File` object with given `relpath`. Throws an Exception if the object was not found.
+        """
         for f in self.files:
             if f.relpath == relpath:
                 return f
         raise Exception(f'No file with relative path "{relpath}" in {self}')
 
     def find_newer(newer_fc: 'FilesCollection', older_fc: 'FilesCollection') -> list[File]:
+        """
+        Returns list of `File` objects that are newer in first passed `FilesCollection` relative to second one.
+
+        `File` object is newer if its last modification timestamp `mod_ts` is higher and its content sha256-checksum is different.
+        """
         l: list[File] = []
         for path_rel in map(lambda f: f.relpath, newer_fc.files):
             f_new = newer_fc.get_by_relpath(path_rel)
@@ -183,6 +209,11 @@ class DirectoryWatcher():
         self.t: threading.Thread = None
 
     def find_change(self) -> list[list[File]]:
+        """
+        Returns `[to_load, to_delete]`, where
+            * `to_load` - files that are newer in the directory than in the last saved state;
+            * `to_delete` - files that are older in the directory (so are newer in the saved state).
+        """
         fc_new = self.read_directory()
         to_load = FilesCollection.find_newer(fc_new, self.fc)
         to_delete = FilesCollection.find_newer(self.fc, fc_new)
@@ -191,53 +222,43 @@ class DirectoryWatcher():
     def read_directory(self) -> FilesCollection:
         return FilesCollection(self.path)
 
-    def watch(self, interval_function, interval_ms: int):
-        self.is_active = True
 
-        def func():
-            while self.is_active:
-                to_load, to_del = self.find_change()
-                interval_function(to_load, to_del)
-                sleep(interval_ms / 1000)
+# class ThreadedTimer():
+#     def __init__(self, interval_ms: int, handlers = []) -> None:
+#         self.handlers = handlers
+#         self.interval_ms: int = interval_ms
 
-        self.t = threading.Thread(target=func)
-        self.t.start()
+#         def func() -> None:
+#             while self.is_active:
+#                 print("hey")
+#                 for f in self.handlers:
+#                     f()
+#                 sleep(self.interval_ms / 1000)
+#         self.thread = threading.Thread(target=func)
 
-    def turn_off(self):
-        self.is_active = False
-        self.t.join()
+#     def start(self) -> None:
+#         self.is_active = True
+#         self.thread.start()
 
-
-class ThreadedTimer():
-    def __init__(self, interval_ms: int, handlers = []) -> None:
-        self.handlers = handlers
-        self.interval_ms: int = interval_ms
-
-        def func():
-            while self.is_active:
-                print("hey")
-                for f in self.handlers:
-                    f()
-                sleep(self.interval_ms / 1000)
-        self.thread = threading.Thread(target=func)
-
-    def start(self):
-        self.is_active = True
-        self.thread.start()
-
-    def join(self):
-        self.is_active = False
-        self.thread.join()
+#     def join(self) -> None:
+#         self.is_active = False
+#         self.thread.join()
 
 
 
-def copy_file(path_from, path_to):
+def copy_file(path_from: str, path_to: str) -> int:
+    """
+    Copies file from one location to another using `win32`'s command `copy <> <>`. Returns the execution's return code.
+    """
     d = os.path.dirname(path_to)
     if not os.path.exists(d) and not os.path.isdir(d):
         os.makedirs(d)
-    code = os.system(f'copy "{path_from}" "{path_to}"')
-    print(code, f'copy "{path_from}" "{path_to}"')
+    return os.system(f'copy "{path_from}" "{path_to}"')
 
+
+def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> None:
+    for f in files:
+        copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
 
 
 
