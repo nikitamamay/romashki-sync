@@ -173,23 +173,25 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.startTimer(1000)
 
     def raiseOnTop(self):
-        self.show()
+        if self.isMaximized():
+            self.showMaximized()
+        else:
+            self.showNormal()
         self.activateWindow()
-        # self.raised.emit()
+        self.raise_()
 
     def setAlwaysOnTop(self, state: bool) -> None:
         self.setWindowFlag(QtCore.Qt.WindowType.WindowStaysOnTopHint, state)
         self.a_toggle_on_top.setChecked(state)
-        self.show()
+        self.raiseOnTop()
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         event.ignore()
-        self.setGeometry(self.geometry())
         self.hide()
 
     def toggle(self):
-        if self.isHidden():
-            self.show()
+        if self.isHidden() or self.isMinimized():
+            self.raiseOnTop()
         else:
             self.hide()
 
@@ -217,6 +219,22 @@ class MainWindow(QtWidgets.QMainWindow):
         for f in l2:
             w = ChangeRepresentationWidget(f, self)
             self.layout_reprs2.addWidget(w)
+
+    def get_checked(self) -> tuple[list[File], list[File]]:
+        l1: list[File] = []
+        l2: list[File] = []
+
+        for i in range(self.layout_reprs1.count()):
+            w: ChangeRepresentationWidget = self.layout_reprs1.itemAt(i).widget()
+            if w.isChecked():
+                l1.append(w.change_obj)
+
+        for i in range(self.layout_reprs2.count()):
+            w: ChangeRepresentationWidget = self.layout_reprs2.itemAt(i).widget()
+            if w.isChecked():
+                l2.append(w.change_obj)
+
+        return (l1, l2)
 
     # def showChanges(self):
     #     self.clear()
