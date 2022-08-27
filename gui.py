@@ -48,25 +48,41 @@ class ScrollArea(QtWidgets.QScrollArea):
             self.setWidget(widget)
 
 
-class ChangeRepresentationWidget(QtWidgets.QWidget):
+class ChangeRepresentationWidget(QtWidgets.QCheckBox):
     def __init__(self, change_obj: File, parent = None) -> None:
         super().__init__(parent)
 
         self.change_obj = change_obj
 
-        self.label = QtWidgets.QLabel(self.change_obj.relpath)
-        self.label.setFont(QtGui.QFont("Consolas"))
-        self.label.setMinimumWidth(self.label.fontMetrics().width(self.label.text()))
+        self.setFont(QtGui.QFont("Consolas"))
+        self.setText(self.change_obj.basename())
+        self.setToolTip(self.change_obj.relpath)
 
-        self.checkbox = QtWidgets.QCheckBox()
-        self.checkbox.setChecked(True)
+        self.menu = QtWidgets.QMenu(self.text())
+        self.menu.addAction(icon.daisy(), self.text())
+        # self.a_ignored = QtWidgets.QAction("Ignore")
+        # self.a_ignored.setCheckable(True)
+        # self.a_ignored.triggered.connect(self.toggleIgnored)
+        # self.menu.addAction(self.a_ignored)
 
-        self.layout_ = QtWidgets.QHBoxLayout()
-        self.layout_.setSpacing(1)
-        self.layout_.setContentsMargins(0, 0, 0, 0)
-        self.layout_.addWidget(self.checkbox)
-        self.layout_.addWidget(self.label, stretch=1)
-        self.setLayout(self.layout_)
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
+        self.menu.move(event.globalPos())
+        self.menu.show()
+
+    # def isIgnored(self) -> bool:
+    #     return self._ignore
+
+    # def setIgnored(self, flag: bool) -> None:
+    #     self._ignore = flag
+
+    #     self.a_ignored.setChecked(self._ignore)
+
+    #     f = self.font()
+    #     f.setItalic(self._ignore)
+    #     self.setFont(f)
+
+    # def toggleIgnored(self) -> None:
+    #     self.setIgnored(not self.isIgnored())
 
 
 class TrayIcon(QtWidgets.QSystemTrayIcon):
@@ -84,6 +100,7 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
 class MainWindow(QtWidgets.QMainWindow):
     exitSignal = QtCore.pyqtBoundSignal()
     changeSignal = QtCore.pyqtBoundSignal()
+    raised = QtCore.pyqtBoundSignal()
 
     def __init__(self, parent = None) -> None:
         super().__init__(parent)
@@ -115,16 +132,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setMenuBar(self.menubar)
 
-        self.layout_reprs = QtWidgets.QVBoxLayout()
-        self.layout_reprs.setSpacing(2)
-        self.layout_reprs.setContentsMargins(0, 0, 0, 0)
-        self.layout_reprs.setAlignment(QtCore.Qt.AlignTop)
+        self.layout_reprs1 = QtWidgets.QVBoxLayout()
+        self.layout_reprs1.setSpacing(2)
+        self.layout_reprs1.setContentsMargins(2, 2, 2, 2)
+        self.layout_reprs1.setAlignment(QtCore.Qt.AlignTop)
 
-        self.group_box = QtWidgets.QWidget()
-        # self.group_box.setFlat(True)
-        self.group_box.setLayout(self.layout_reprs)
+        self.layout_reprs2 = QtWidgets.QVBoxLayout()
+        self.layout_reprs2.setSpacing(2)
+        self.layout_reprs2.setContentsMargins(2, 2, 2, 2)
+        self.layout_reprs2.setAlignment(QtCore.Qt.AlignTop)
 
-        self.scroll_area = ScrollArea(self.group_box)
+        self.group_box1 = QtWidgets.QWidget()
+        self.group_box1.setLayout(self.layout_reprs1)
+
+        self.group_box2 = QtWidgets.QWidget()
+        self.group_box2.setLayout(self.layout_reprs2)
+
+        self.scroll_area1 = ScrollArea(self.group_box1)
+        self.scroll_area2 = ScrollArea(self.group_box2)
 
         self.btn_select_all = QtWidgets.QPushButton(icon.checkbox_on(), "Select all")
         self.btn_deselect_all = QtWidgets.QPushButton(icon.checkbox_off(), "Deselect all")
@@ -137,7 +162,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.c_widget = QtWidgets.QWidget()
         self.gridlayout = QtWidgets.QGridLayout()
         self.gridlayout.addLayout(btn_layout, 1, 1, 1, 1)
-        self.gridlayout.addWidget(self.scroll_area, 2, 1, 1, 1)
+        self.gridlayout.addWidget(self.scroll_area1, 2, 1, 1, 1)
+        self.gridlayout.addWidget(self.scroll_area2, 2, 2, 1, 1)
         self.c_widget.setLayout(self.gridlayout)
 
         self.setCentralWidget(self.c_widget)
@@ -149,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def raiseOnTop(self):
         self.show()
         self.activateWindow()
+        # self.raised.emit()
 
     def setAlwaysOnTop(self, state: bool) -> None:
         self.setWindowFlag(QtCore.Qt.WindowType.WindowStaysOnTopHint, state)
@@ -177,14 +204,19 @@ class MainWindow(QtWidgets.QMainWindow):
         return super().timerEvent(event)
 
     def clear(self):
-        for i in range(self.layout_reprs.count()):
-            self.layout_reprs.removeWidget(self.layout_reprs.itemAt(0).widget())
+        for i in range(self.layout_reprs1.count()):
+            self.layout_reprs1.removeWidget(self.layout_reprs1.itemAt(0).widget())
+        for i in range(self.layout_reprs2.count()):
+            self.layout_reprs2.removeWidget(self.layout_reprs2.itemAt(0).widget())
 
-    def init_representations(self, l: list[File]):
+    def init_representations(self, l1: list[File], l2: list[File]):
         self.clear()
-        for f in l:
+        for f in l1:
             w = ChangeRepresentationWidget(f, self)
-            self.layout_reprs.addWidget(w)
+            self.layout_reprs1.addWidget(w)
+        for f in l2:
+            w = ChangeRepresentationWidget(f, self)
+            self.layout_reprs2.addWidget(w)
 
     # def showChanges(self):
     #     self.clear()
@@ -218,9 +250,9 @@ if __name__ == "__main__":
 
     window = MainWindow()
 
-    window.init_representations(fc.files)
+    window.init_representations(fc.files, fc.files)
 
 
-    window.show()
+    window.raiseOnTop()
 
     exit(app.exec())

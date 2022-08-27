@@ -24,6 +24,11 @@ if not os.path.isfile(config_filepath):
 config_reader.read_config_file(config_filepath)
 
 
+app = gui.Application([])
+
+window = gui.MainWindow()
+
+
 def look_for_changes():
     fc_local = file_watcher.FilesCollection(CONFIG["local_folder_path"])
     fc_gdrive = file_watcher.FilesCollection(CONFIG["gdrive_folder_path"])
@@ -34,42 +39,33 @@ def look_for_changes():
     print("Newer on PC (Upload to cloud):", new_local)
     print("Older on PC (Remove from cloud OR Download to PC):", old_local)
 
-    if len(new_local) > 0:
-        if input('Enter "yes" to copy new files from LOCAL to CLOUD.\nLocal --> Cloud\n> ') == "yes":
-            file_watcher.copy_files_array(new_local, fc_local.path, fc_gdrive.path)
-            print("Copied.")
-        else:
-            print("Abort.")
+    window.init_representations(new_local, old_local)
 
-    if len(old_local) > 0:
-        if input('Enter "yes" to copy new files from CLOUD to LOCAL.\nCloud --> Local\n> ') == "yes":
-            file_watcher.copy_files_array(old_local, fc_gdrive.path, fc_local.path)
-            print("Copied.")
-        else:
-            print("Abort.")
+    # if len(new_local) > 0:
+    #     if input('Enter "yes" to copy new files from LOCAL to CLOUD.\nLocal --> Cloud\n> ') == "yes":
+    #         file_watcher.copy_files_array(new_local, fc_local.path, fc_gdrive.path)
+    #         print("Copied.")
+    #     else:
+    #         print("Abort.")
 
-
-
-
-while True:
-    i = input("look for changes? > ")
-    if i == "exit":
-        exit()
-    look_for_changes()
+    # if len(old_local) > 0:
+    #     if input('Enter "yes" to copy new files from CLOUD to LOCAL.\nCloud --> Local\n> ') == "yes":
+    #         file_watcher.copy_files_array(old_local, fc_gdrive.path, fc_local.path)
+    #         print("Copied.")
+    #     else:
+    #         print("Abort.")
 
 
-# app = gui.Application([])
 
-# window = gui.MainWindow()
+a = gui.QtWidgets.QAction("look for changes")
+a.triggered.connect(look_for_changes)
 
-# def f():
-#     window.showChanges()
+window.menubar.addAction(a)
 
-# window.dw = file_watcher.DirectoryWatcher(CONFIG["local_folder_path"], fc_local)
-# window.show()
+# window.raiseOnTop()
+window.show()
 
-
-# exit(app.exec())
+exit(app.exec())
 
 
 
