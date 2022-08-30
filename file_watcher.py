@@ -277,7 +277,12 @@ def copy_file(path_from: str, path_to: str) -> int:
     d = os.path.dirname(path_to)
     if not os.path.exists(d) and not os.path.isdir(d):
         os.makedirs(d)
-    return os.system(f'copy "{path_from}" "{path_to}"')
+
+    cmd = f'copy "{path_from}" "{path_to}"'
+
+    return_code = os.system(cmd)
+    print(return_code, cmd)
+    return return_code
 
 
 def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> None:
