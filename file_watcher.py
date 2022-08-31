@@ -224,55 +224,28 @@ def save_files_info(path: str, fcs: FCs) -> None:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 
-
-class DirectoryWatcher():
-    def __init__(self, path: str, fc: FilesCollection, ignore: list[str] = []) -> None:
-        self.path = path
-        self.fc: FilesCollection = fc
-        self.is_active = False
-        self.t: threading.Thread = None
-        self.ignore: list[str] = ignore
-
-    def find_change(self) -> list[list[File]]:
-        """
-        Returns `[to_load, to_delete]`, where
-            * `to_load` - files that are newer in the directory than in the last saved state;
-            * `to_delete` - files that are older in the directory (so are newer in the saved state).
-        """
-        fc_new = self.read_directory()
-        to_load = FilesCollection.find_newer(fc_new, self.fc)
-        to_delete = FilesCollection.find_newer(self.fc, fc_new)
-        return [to_load, to_delete]
-
-    def read_directory(self) -> FilesCollection:
-        return FilesCollection(self.path, ignore=self.ignore)
+def get_last_sync(path_files_info: str, path_current_state: str) -> FilesCollection:
+    fcs = load_files_info(path_files_info)
+    if len(fcs) == 1:
+        return fcs[0]
+    else:
+        print(f'No saved files info, using current state of "{path_current_state}" as last_sync.')
+        fc = FilesCollection(path_current_state, True)
+        save_last_sync(path_files_info, fc)
+        return fc
 
 
-# class ThreadedTimer():
-#     def __init__(self, interval_ms: int, handlers = []) -> None:
-#         self.handlers = handlers
-#         self.interval_ms: int = interval_ms
-
-#         def func() -> None:
-#             while self.is_active:
-#                 for f in self.handlers:
-#                     f()
-#                 sleep(self.interval_ms / 1000)
-#         self.thread = threading.Thread(target=func, daemon=True)
-
-#     def start(self) -> None:
-#         self.is_active = True
-#         self.thread.start()
-
-#     def join(self) -> None:
-#         self.is_active = False
-#         self.thread.join()
+def save_last_sync(path_files_info: str, fc_last_sync: FilesCollection) -> None:
+    save_files_info(path_files_info, [fc_last_sync])
+    print("Saved fc_last_sync.")
 
 
 
 def copy_file(path_from: str, path_to: str) -> int:
     """
-    Copies file from one location to another using `win32`'s command `copy <> <>`. Returns the execution's return code.
+    Copies file from one location to another using `win32`'s command `copy <> <>`.
+
+    Returns the execution's return code.
     """
     d = os.path.dirname(path_to)
     if not os.path.exists(d) and not os.path.isdir(d):
@@ -285,9 +258,18 @@ def copy_file(path_from: str, path_to: str) -> int:
     return return_code
 
 
-def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> None:
+def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> list[File]:
+    """
+    Copies files passed as an array `files` using `copy_file()`.
+
+    Returns list of `File` objects that are actually copied (`copy_file()`'s return code is 0).
+    """
+    copied_files: list[File] = []
     for f in files:
-        copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
+        rc = copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
+        if rc == 0:
+            copied_files.append(f)
+    return copied_files
 
 
 # def commit(files: list[File], dw_from: DirectoryWatcher, dw_to: DirectoryWatcher) -> None:
