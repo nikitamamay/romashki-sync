@@ -5,6 +5,7 @@ File = file_watcher.File
 
 APP_NAME = "RomashkiSync"
 
+FONT_FAMILY_MONOSPACE = "Consolas"
 
 class icon():
     def daisy():
@@ -41,6 +42,10 @@ class icon():
         return QtGui.QIcon("icons/network_cloud.png")
     def cloud_old():
         return QtGui.QIcon("icons/network_cloud_old.png")
+    def cloud_to_local():
+        return QtGui.QIcon("icons/cloud_to_local.png")
+    def local_to_cloud():
+        return QtGui.QIcon("icons/local_to_cloud.png")
 
 
 
@@ -67,7 +72,7 @@ class ChangeRepresentationWidget(QtWidgets.QCheckBox):
 
         self.file_obj = file_obj
 
-        self.setFont(QtGui.QFont("Consolas"))
+        self.setFont(QtGui.QFont(FONT_FAMILY_MONOSPACE))
         self.setText(self.file_obj.basename())
         self.setToolTip(self.file_obj.relpath)
 
@@ -81,6 +86,12 @@ class ChangeRepresentationWidget(QtWidgets.QCheckBox):
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
         self.menu.move(event.globalPos())
         self.menu.show()
+
+    def setState(self, state: int):
+        if state == 1:
+            self.setStyleSheet("color: red")
+        else:
+            raise Exception(f'Unsupported state: {state}')
 
     # def isIgnored(self) -> bool:
     #     return self._ignore
@@ -149,6 +160,12 @@ class ChangeRepresentationListWidget(QtWidgets.QWidget):
         while len(self.reprs) > 0:
             self.layout_reprs.removeWidget(self.reprs.pop())
 
+    def apply_intersections(self, l: list[File]) -> None:
+        for f in l:
+            for r in self.reprs:
+                if r.file_obj.relpath == f.relpath:
+                    r.setState(1)
+
     def add_file_repr(self, f: File) -> None:
         w = ChangeRepresentationWidget(f)
         self.layout_reprs.addWidget(w)
@@ -178,6 +195,79 @@ class ChangeRepresentationListWidget(QtWidgets.QWidget):
                 QtCore.Qt.CheckState.Unchecked,
                 QtCore.Qt.CheckState.Checked
             ][int(state)])
+        else:
+            self.checkbox_all.setCheckState(QtCore.Qt.CheckState.Unchecked)
+
+
+class FileDialog(QtWidgets.QDialog):
+    def __init__(self, parent = None) -> None:
+        super().__init__(parent)
+        self.setSizeGripEnabled(True)
+        self.setWindowFlag(QtCore.Qt.MSWindowsFixedSizeDialogHint, False)
+        self.setWindowFlag(QtCore.Qt.WindowContextHelpButtonHint, False)
+        self.resize(400, 300)
+
+        self.label_icon = QtWidgets.QLabel()
+        self.setPixmap(icon.daisy2().pixmap(32, 32))
+        self.label_icon.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Minimum)
+
+        self.label_text = QtWidgets.QLabel()
+        self.label_text.setWordWrap(True)
+
+        self.items_layout = QtWidgets.QVBoxLayout()
+        self.items_layout.setAlignment(QtCore.Qt.AlignTop)
+        self.items_layout.setContentsMargins(5, 5, 5, 5)
+        self.items_layout.setSpacing(2)
+
+        container_widget = QtWidgets.QWidget()
+        container_widget.setLayout(self.items_layout)
+
+        self.scroll_area = ScrollArea(container_widget)
+
+        btn_accept = QtWidgets.QPushButton(icon.accept(), "Yes")
+        btn_accept.clicked.connect(self.accept)
+        btn_reject = QtWidgets.QPushButton(icon.deny(), "No")
+        btn_reject.clicked.connect(self.reject)
+
+        l_btn = QtWidgets.QHBoxLayout()
+        l_btn.setAlignment(QtCore.Qt.AlignRight)
+        l_btn.addStretch(1)
+        l_btn.addWidget(btn_accept, 0)
+        l_btn.addWidget(btn_reject, 0)
+        l_btn_margins = l_btn.contentsMargins()
+        l_btn_margins.setTop(15)
+        l_btn.setContentsMargins(l_btn_margins)
+
+        l = QtWidgets.QGridLayout()
+        l.setContentsMargins(15, 15, 15, 15)
+        l.addWidget(self.label_icon, 0, 0, 2, 1, QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
+        l.addWidget(self.label_text, 0, 1, 1, 1)
+        l.addWidget(self.scroll_area, 1, 1, 1, 1)
+        l.addLayout(l_btn, 2, 0, 1, 2)
+        self.setLayout(l)
+
+        self.setText = self.label_text.setText
+        self.text = self.label_text.text
+
+    def setPixmap(self, pixmap: QtGui.QPixmap) -> None:
+        self.label_icon.setPixmap(pixmap)
+        self.label_icon.sizeHint = lambda: pixmap.size()
+
+    def initFilenames(self, files: list[File]) -> None:
+        font = QtGui.QFont(FONT_FAMILY_MONOSPACE)
+        for f in files:
+            l = QtWidgets.QLabel(f.relpath, self)
+            l.setFont(font)
+            self.items_layout.addWidget(l)
+
+    @staticmethod
+    def run(parent, pixmap: QtGui.QPixmap, title: str, msg: str, files: list[File]) -> bool:
+        d = FileDialog(parent)
+        d.setWindowTitle(f'{title} - {APP_NAME}')
+        d.setText(msg)
+        d.setPixmap(pixmap)
+        d.initFilenames(files)
+        return bool(d.exec())
 
 
 class TrayIcon(QtWidgets.QSystemTrayIcon):
@@ -208,6 +298,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.local_folder_path = self.config["local_folder_path"]
         self.gdrive_folder_path = self.config["gdrive_folder_path"]
         self.fc_last_sync: file_watcher.FilesCollection = file_watcher.get_last_sync(self.config["files_info_path"], self.gdrive_folder_path)
+
+        # FileWatcher for local directory works strange: doesn't see changes in files, but sees file creation/deletion
+        self.fw2 = QtCore.QFileSystemWatcher([self.gdrive_folder_path], self)
+        self.fw2.directoryChanged.connect(self.change_detected)
 
         self.setMinimumSize(500, 200)
         self.setGeometry(
@@ -358,10 +452,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 <p>Or if it is not the case, make sure to threat this error properly.</p>'
             )
 
+        intersections = file_watcher.get_intersections(new_local, new_gdrive)
+
         self.reprs_list_widget_newlocal.init_representations(new_local)
         self.reprs_list_widget_newgdrive.init_representations(new_gdrive)
         # self.reprs_list_widget_oldlocal.init_representations(old_local)
         self.reprs_list_widget_oldgdrive.init_representations(old_gdrive)
+
+        self.reprs_list_widget_newlocal.apply_intersections(intersections)
+        self.reprs_list_widget_newgdrive.apply_intersections(intersections)
 
     def sync(self) -> None:
         checked_new_local = self.reprs_list_widget_newlocal.get_checked_files()
@@ -369,56 +468,78 @@ class MainWindow(QtWidgets.QMainWindow):
         print('Checked as "Upload to cloud":', checked_new_local)
         print('Checked as "Download to PC":', checked_old_local)
 
+        check_changes = True
+
         if len(checked_new_local) > 0:
-            text_new_local = "<br>".join([f.relpath for f in checked_new_local])
-            if QtWidgets.QMessageBox.question(
+            if FileDialog.run(
                         self,
+                        icon.local_to_cloud().pixmap(96, 32),
                         "from LOCAL to CLOUD",
-                        f'Are you sure to copy files <br><br><code>{text_new_local}</code><br><br>from "{self.local_folder_path}"<br>to "{self.gdrive_folder_path}"?',
-                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-                    ) == QtWidgets.QMessageBox.Yes:
+                        f'Are you sure to copy {len(checked_new_local)} file(s)<br>from <code>{self.local_folder_path}</code><br>to <code>{self.gdrive_folder_path}</code> ?',
+                        checked_new_local
+                    ) == True:
                 files_copied = file_watcher.copy_files_array(checked_new_local, self.local_folder_path, self.gdrive_folder_path)
                 print("Copied from LOCAL to CLOUD:", files_copied)
                 self.fc_last_sync.update_partially(files_copied)
             else:
                 print("Abort.")
+                check_changes = False
 
         if len(checked_old_local) > 0:
-            text_old_local = "<br>".join([f.relpath for f in checked_old_local])
-            if QtWidgets.QMessageBox.question(
+            if FileDialog.run(
                         self,
+                        icon.cloud_to_local().pixmap(96, 32),
                         "from CLOUD to LOCAL",
-                        f'Are you sure to copy files <br><br><code>{text_old_local}</code><br><br>from "{self.gdrive_folder_path}"<br>to "{self.local_folder_path}"?',
-                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-                    ) == QtWidgets.QMessageBox.Yes:
+                        f'Are you sure to copy {len(checked_old_local)} file(s)<br>from <code>{self.gdrive_folder_path}</code><br>to <code>{self.local_folder_path}</code> ?',
+                        checked_old_local
+                    ) == True:
                 files_copied = file_watcher.copy_files_array(checked_old_local, self.gdrive_folder_path, self.local_folder_path)
                 print("Copied from CLOUD to LOCAL:", files_copied)
                 self.fc_last_sync.update_partially(files_copied)
             else:
                 print("Abort.")
+                check_changes = False
 
         file_watcher.save_last_sync(self.config["files_info_path"], self.fc_last_sync)
 
-        self.look_for_changes()
+        if check_changes:
+            self.look_for_changes()
+
+    def change_detected(self):
+        self.tray_icon.showMessage(
+            "G-Drive has changed",
+            f'Some files in {self.gdrive_folder_path} are changed.',
+            TrayIcon.MessageIcon.Information,
+            10000
+        )
+        # self.raiseOnTop()
+        # self.look_for_changes()
 
 
 if __name__ == "__main__":
-    import file_watcher
-    import config_reader
-    import sys
+    # import file_watcher
+    # import config_reader
+    # import sys
 
-    CONFIG = config_reader.CONFIG
+    # CONFIG = config_reader.CONFIG
 
-    if len(sys.argv) != 2:
-        print("Error: config path is not specified!")
-        exit()
+    # if len(sys.argv) != 2:
+    #     print("Error: config path is not specified!")
+    #     exit()
 
-    config_reader.read_config_file(sys.argv[1])
+    # config_reader.read_config_file(sys.argv[1])
 
     app = Application([])
 
-    window = MainWindow(CONFIG)
+    # window = MainWindow(CONFIG)
 
-    window.raiseOnTop()
+    # window.raiseOnTop()
 
-    exit(app.exec())
+    d = FileDialog()
+    d.setText("Are you sure? " * 30)
+    d.show()
+
+    app.exec()
+    print(d.result())
+
+    exit()
