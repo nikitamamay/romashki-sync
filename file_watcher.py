@@ -153,10 +153,10 @@ class FilesCollection(IFilesCollection):
         """
         Returns a `File` object with given `relpath`. Throws an Exception if the object was not found.
         """
-        for f in self.files:
-            if f.relpath == relpath:
-                return f
-        raise Exception(f'No file with relative path "{relpath}" in {self}')
+        f = get_by_relpath(self.files, relpath)
+        if f == None:
+            raise Exception(f'No file with relative path "{relpath}" in {self}')
+        return f
 
     def find_newer(newer_fc: 'FilesCollection', older_fc: 'FilesCollection') -> list[File]:
         """
@@ -239,6 +239,29 @@ def save_last_sync(path_files_info: str, fc_last_sync: FilesCollection) -> None:
     save_files_info(path_files_info, [fc_last_sync])
     print("Saved fc_last_sync.")
 
+
+
+
+def get_by_relpath(l: list[File], relpath: str) -> File:
+    """
+    Returns a `File` object with given `relpath`. Returns `None` if there is no file with such `relpath`.
+    """
+    for f in l:
+        if f.relpath == relpath:
+            return f
+    return None
+
+
+def get_intersections(l1: list[File], l2: list[File]) -> list[File]:
+    """
+    Returns list of `File` objects that are presented in both `l1` and `l2`.
+    """
+    l: list[File] = []
+    for path_rel in map(lambda f: f.relpath, l1):
+        f = get_by_relpath(l2, path_rel)
+        if f != None:
+            l.append(f)
+    return l
 
 
 def copy_file(path_from: str, path_to: str) -> int:
