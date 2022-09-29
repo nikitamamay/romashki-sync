@@ -6,8 +6,9 @@ from gui.main_window import *
 
 from gui.misc import *
 
-import config
-
+import config_reader
+import const
+import application
 
 
 class TrayIcon(QtWidgets.QSystemTrayIcon):
@@ -22,38 +23,25 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
         self.menu.addAction(self.a_exit)
 
         self.setContextMenu(self.menu)
-        self.setToolTip(APP_NAME)
+        self.setToolTip(const.APP_NAME)
 
 
-class Application(QtWidgets.QApplication):
+class GUIApplication(QtWidgets.QApplication, application.Application):
     def __init__(self, argv: 'list[str]') -> None:
-        super().__init__(argv)
+        QtWidgets.QApplication.__init__(self, argv)
+        application.Application.__init__(self)
+
         self.setWindowIcon(icon.daisy2())
-        self.setApplicationName(APP_NAME)
-        self.setApplicationDisplayName(APP_NAME)
+        self.setApplicationName(const.APP_NAME)
+        self.setApplicationDisplayName(const.APP_NAME)
 
-        self.CONFIG = config.Config()
-
-        if len(argv) == 1:
-            print("No config file path specified. Needs configuring.")
-        elif len(argv) == 2:
-            filepath = argv[1]
-            print(f'Reading config file: "{filepath}"')
-            self.CONFIG.read_config_file(filepath)
-        else:
-            print('Usage:\n\tprogram [file.cfg]\n\nfile.cfg is a path to config file.')
-            exit()
-
-        self.cw = ConfigWindow(self.CONFIG)
+        self.cw = ProjectConfigWindow(self._prj_cfg)
 
         self.tray_icon = TrayIcon()
         self.tray_icon.show()
         self.tray_icon.a_exit.triggered.connect(self.exit)
 
-        if not self.CONFIG.is_valid():
-            self.configure()
-
-        self.mw = MainWindow(self.CONFIG)
+        self.mw = MainWindow(self)
         self.mw.a_about.triggered.connect(self.about)
 
         self.tray_icon.activated.connect(
@@ -61,13 +49,19 @@ class Application(QtWidgets.QApplication):
         self.tray_icon.messageClicked.connect(self.mw.raiseOnTop)
         self.tray_icon.a_raise.triggered.connect(self.mw.raiseOnTop)
 
-        self.mw.raiseOnTop()
+
+        if self._prj_cfg.is_valid():
+            self.init_project()
+        else:
+            self.configure()
 
     def configure(self):
         self.cw.exec()
 
         try:
-            self.CONFIG.check()
+            self._prj_cfg.check()
+            self.set_project_config(self._prj_cfg)
+            self.init_project()
         except Exception as e:
             btn = QtWidgets.QMessageBox.critical(
                 self.cw,
@@ -80,6 +74,11 @@ class Application(QtWidgets.QApplication):
                 self.configure()
             else:
                 exit()
+
+    def init_project(self) -> None:
+        application.Application.init_project(self)
+        self.mw.init_project()
+        self.mw.raiseOnTop()
 
     def about(self) -> None:
         QtWidgets.QMessageBox.about(self.mw, "About RomashkiSync", PROGRAM_ABOUT)

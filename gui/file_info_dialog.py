@@ -2,8 +2,12 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 from gui.misc import *
 from gui.scroll_area import ScrollArea
+
+import const
+
 import file_watcher
 File = file_watcher.File
+
 
 
 class FileDialog(QtWidgets.QDialog):
@@ -70,7 +74,7 @@ class FileDialog(QtWidgets.QDialog):
     @staticmethod
     def run(parent, pixmap: QtGui.QPixmap, title: str, msg: str, files: list[File]) -> bool:
         d = FileDialog(parent)
-        d.setWindowTitle(f'{title} - {APP_NAME}')
+        d.setWindowTitle(f'{title} - {const.APP_NAME}')
         d.setText(msg)
         d.setPixmap(pixmap)
         d.initFilenames(files)

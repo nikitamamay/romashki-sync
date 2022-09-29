@@ -1,7 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-APP_NAME = "RomashkiSync"
-
 FONT_FAMILY_MONOSPACE = "Consolas"
 
 PROGRAM_ABOUT = """

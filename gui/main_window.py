@@ -5,6 +5,10 @@ from gui.change_representation import *
 from gui.file_info_dialog import *
 from gui.config_window import *
 
+import config
+import application
+import config_reader
+
 import file_watcher
 File = file_watcher.File
 
@@ -14,16 +18,14 @@ class MainWindow(QtWidgets.QMainWindow):
     changeSignal = QtCore.pyqtBoundSignal()
     raised = QtCore.pyqtBoundSignal()
 
-    def __init__(self, config: Config, parent = None) -> None:
+    def __init__(self, app: application.Application, parent = None) -> None:
         super().__init__(parent)
 
-        self.CONFIG = config
+        self._app = app
 
-        self.fc_last_sync: file_watcher.FilesCollection = file_watcher.get_last_sync(self.CONFIG.get_files_info_path(), self.CONFIG.get_gdrive_folder_path())
+        self.is_project_initted = False
 
-        ### FileWatcher for local directory works strange: doesn't see changes in files, but sees file creation/deletion
-        # self.fw2 = QtCore.QFileSystemWatcher([self.CONFIG.get_gdrive_folder_path()], self)
-        # self.fw2.directoryChanged.connect(self.change_detected)
+        self.fc_last_sync = None
 
         self.setMinimumSize(500, 200)
         self.setGeometry(
@@ -35,6 +37,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.menubar = QtWidgets.QMenuBar(self)
         self.setMenuBar(self.menubar)
+
+        self.menu_recent_projects = QtWidgets.QMenu("Recent projects", self)
+
+        self.menu_file = QtWidgets.QMenu("File", self)
+        self.menu_file.addMenu(self.menu_recent_projects)
+        self.a_recent_projects = self.menubar.addMenu(self.menu_file)
 
         self.menu_sync = QtWidgets.QMenu("Synchronization", self)
         self.menu_sync.addAction(icon.magnifier(), "Look for changes", self.look_for_changes)
@@ -76,8 +84,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self.c_widget)
 
-        # self.is_active = True
-        # self.startTimer(1000)
 
     def showEvent(self, a0: QtGui.QShowEvent) -> None:
         super().showEvent(a0)
@@ -116,9 +122,44 @@ class MainWindow(QtWidgets.QMainWindow):
     #         self.showChanges()
     #     return super().timerEvent(event)
 
+    def init_project(self) -> None:
+        def action_f(cfg_path__: str):
+            def f():
+                self.close_project()
+                self._app.set_project_config(config.ProjectConfig(cfg_path__))
+                self._app.init_project()
+            return f
+
+        self.fc_last_sync: file_watcher.FilesCollection = file_watcher.get_last_sync(
+            self._app.get_project_config().get_files_info_path(),
+            self._app.get_project_config().get_gdrive_folder_path()
+        )
+        ### FileWatcher for local directory works strange: doesn't see changes in files, but sees file creation/deletion
+        # self.fw2 = QtCore.QFileSystemWatcher([self.CONFIG.get_gdrive_folder_path()], self)
+        # self.fw2.directoryChanged.connect(self.change_detected)
+
+        # self.is_active = True
+        # self.startTimer(1000)
+        self.is_project_initted = True
+
+        while len(self.menu_recent_projects.actions()) > 0:
+            self.menu_recent_projects.removeAction(self.menu_recent_projects.actions()[0])
+        for path in self._app.get_app_config().get_last_projects_paths_list():
+            self.menu_recent_projects.addAction(
+                path,
+                action_f(path)
+            )
+
+    def close_project(self) -> None:
+        self.fc_last_sync = None
+        self.is_project_initted = False
+        self.close()
+
     def look_for_changes(self) -> None:
-        fc_local = file_watcher.FilesCollection(self.CONFIG.get_local_folder_path())
-        fc_gdrive = file_watcher.FilesCollection(self.CONFIG.get_gdrive_folder_path())
+        if not self.is_project_initted: return
+
+        fc_local = file_watcher.FilesCollection(self._app.get_project_config().get_local_folder_path())
+        fc_gdrive = file_watcher.FilesCollection(self._app.get_project_config().get_gdrive_folder_path())
 
         new_local = file_watcher.FilesCollection.find_newer(fc_local, self.fc_last_sync)
         old_local = file_watcher.FilesCollection.find_newer(self.fc_last_sync, fc_local)
@@ -142,7 +183,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(
                 self,
                 "Old files detected",
-                f'<p>Some files <br><br><code>{text_oldgdrive}</code><br><br>are older in "{self.CONFIG.get_gdrive_folder_path()}" than they are presented as <code>last_sync</code> state.</p> \
+                f'<p>Some files <br><br><code>{text_oldgdrive}</code><br><br>are older in "{self._app.get_project_config().get_gdrive_folder_path()}" than they are presented as <code>last_sync</code> state.</p> \
                 <p>The issue may be caused by GDrive still not downloaded new files from cloud. Wait for it.</p> \
                 <p>Or if it is not the case, make sure to threat this error properly.</p>'
             )
@@ -152,7 +193,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(
                 self,
                 "Old files detected",
-                f'<p>Some files <br><br><code>{text_oldlocal}</code><br><br>are older in "{self.CONFIG.get_local_folder_path()}" than they are presented as <code>last_sync</code> state.</p> \
+                f'<p>Some files <br><br><code>{text_oldlocal}</code><br><br>are older in "{self._app.get_project_config().get_local_folder_path()}" than they are presented as <code>last_sync</code> state.</p> \
                 <p>The issue may be caused by the User not downloaded files that are newer in the cloud.</p> \
                 <p>Or if it is not the case, make sure to threat this error properly.</p>'
             )
@@ -167,6 +208,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.reprs_list_widget_newgdrive.apply_intersections(intersections)
 
     def sync(self) -> None:
+        if not self.is_project_initted: return
+
         checked_new_local = self.reprs_list_widget_newlocal.get_checked_files()
         checked_old_local = self.reprs_list_widget_newgdrive.get_checked_files()
         print('Checked as "Upload to cloud":', checked_new_local)
@@ -179,10 +222,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         self,
                         icon.local_to_cloud().pixmap(96, 32),
                         "from LOCAL to CLOUD",
-                        f'Are you sure to copy {len(checked_new_local)} file(s)<br>from <code>{self.CONFIG.get_local_folder_path()}</code><br>to <code>{self.CONFIG.get_gdrive_folder_path()}</code> ?',
+                        f'Are you sure to copy {len(checked_new_local)} file(s)<br>from <code>{self._app.get_project_config().get_local_folder_path()}</code><br>to <code>{self._app.get_project_config().get_gdrive_folder_path()}</code> ?',
                         checked_new_local
                     ) == True:
-                files_copied = file_watcher.copy_files_array(checked_new_local, self.CONFIG.get_local_folder_path(), self.CONFIG.get_gdrive_folder_path())
+                files_copied = file_watcher.copy_files_array(checked_new_local, self._app.get_project_config().get_local_folder_path(), self._app.get_project_config().get_gdrive_folder_path())
                 print("Copied from LOCAL to CLOUD:", files_copied)
                 self.fc_last_sync.update_partially(files_copied)
             else:
@@ -194,31 +237,23 @@ class MainWindow(QtWidgets.QMainWindow):
                         self,
                         icon.cloud_to_local().pixmap(96, 32),
                         "from CLOUD to LOCAL",
-                        f'Are you sure to copy {len(checked_old_local)} file(s)<br>from <code>{self.CONFIG.get_gdrive_folder_path()}</code><br>to <code>{self.CONFIG.get_local_folder_path()}</code> ?',
+                        f'Are you sure to copy {len(checked_old_local)} file(s)<br>from <code>{self._app.get_project_config().get_gdrive_folder_path()}</code><br>to <code>{self._app.get_project_config().get_local_folder_path()}</code> ?',
                         checked_old_local
                     ) == True:
-                files_copied = file_watcher.copy_files_array(checked_old_local, self.CONFIG.get_gdrive_folder_path(), self.CONFIG.get_local_folder_path())
+                files_copied = file_watcher.copy_files_array(checked_old_local, self._app.get_project_config().get_gdrive_folder_path(), self._app.get_project_config().get_local_folder_path())
                 print("Copied from CLOUD to LOCAL:", files_copied)
                 self.fc_last_sync.update_partially(files_copied)
             else:
                 print("Abort.")
                 check_changes = False
 
-        file_watcher.save_last_sync(self.CONFIG.get_files_info_path(), self.fc_last_sync)
+        file_watcher.save_last_sync(self._app.get_project_config().get_files_info_path(), self.fc_last_sync)
 
         if check_changes:
             self.look_for_changes()
 
     def change_detected(self):
         print("change detected.")
-        # self.tray_icon.showMessage(
-        #     "G-Drive has changed",
-        #     f'Some files in {self.CONFIG.get_gdrive_folder_path()} are changed.',
-        #     TrayIcon.MessageIcon.Information,
-        #     10000
-        # )
-        # self.raiseOnTop()
-        # self.look_for_changes()
 
 
 

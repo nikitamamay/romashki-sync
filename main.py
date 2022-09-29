@@ -1,9 +1,9 @@
 import sys
 import os
 
-from gui.app import Application
+from gui.app import GUIApplication
 
 
-app = Application(sys.argv)
+app = GUIApplication(sys.argv)
 
 exit(app.exec())
