@@ -1,12 +1,13 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+import sys
 import os
+
 from gui.config_window import *
 from gui.main_window import *
 
 from gui.misc import *
 
-import config_reader
 import const
 import application
 
@@ -73,7 +74,7 @@ class GUIApplication(QtWidgets.QApplication, application.Application):
             if btn == QtWidgets.QMessageBox.StandardButton.Retry:
                 self.configure()
             else:
-                exit()
+                sys.exit()
 
     def init_project(self) -> None:
         application.Application.init_project(self)
@@ -82,3 +83,9 @@ class GUIApplication(QtWidgets.QApplication, application.Application):
 
     def about(self) -> None:
         QtWidgets.QMessageBox.about(self.mw, "About RomashkiSync", PROGRAM_ABOUT)
+
+    def exit(self) -> None:
+        self.save_all_configs()
+        self.mw.close()
+        self.tray_icon.hide()
+        sys.exit(0)

@@ -61,3 +61,7 @@ class LineEdit(QtWidgets.QLineEdit):
         color = ["red", "green", "blue"][state + 1]
         self.setStyleSheet(f"color: {color};")
         self.setToolTip(tooltip)
+
+
+def geometry_as_list(g: QtCore.QRect) -> list[int, int, int, int]:
+    return [g.left(), g.top(), g.width(), g.height()]

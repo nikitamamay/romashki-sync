@@ -6,4 +6,4 @@ from gui.app import GUIApplication
 
 app = GUIApplication(sys.argv)
 
-exit(app.exec())
+sys.exit(app.exec())

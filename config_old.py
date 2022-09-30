@@ -5,7 +5,7 @@ APPDATA_PATH: str = os.path.join(os.getenv("APPDATA"), "RomashkiSync")
 
 if sys.platform != "win32":
     print(f'Your current platform is "{sys.platform}". Only "win32" is supported for now. Sorry.')
-    exit(1)
+    sys.exit(1)
 
 
 class Config():

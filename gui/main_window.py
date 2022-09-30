@@ -1,5 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+import sys
+
 from gui.misc import *
 from gui.change_representation import *
 from gui.file_info_dialog import *
@@ -24,16 +26,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._app = app
 
         self.is_project_initted = False
-
         self.fc_last_sync = None
 
         self.setMinimumSize(500, 200)
-        self.setGeometry(
-            self.screen().size().width() - 800 - 20,
-            self.screen().size().height() - 325 - 50,
-            800,
-            325
-        )
 
         self.menubar = QtWidgets.QMenuBar(self)
         self.setMenuBar(self.menubar)
@@ -57,7 +52,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.a_about = QtWidgets.QAction(icon.daisy(), "About", self.menubar)
         self.menu_window.addAction(self.a_about)
         self.menu_window.addSeparator()
-        self.menu_window.addAction(QtGui.QIcon("icons/cancel.png"), "Exit", self.exit)
+        self.menu_window.addAction(QtGui.QIcon("icons/cancel.png"), "Exit", self._app.exit)
         self.menubar.addMenu(self.menu_window)
 
         self.reprs_list_widget_newlocal = ChangeRepresentationListWidget(self)
@@ -84,6 +79,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self.c_widget)
 
+        self.apply_app_config()
 
     def showEvent(self, a0: QtGui.QShowEvent) -> None:
         super().showEvent(a0)
@@ -97,6 +93,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowFlag(QtCore.Qt.WindowType.WindowStaysOnTopHint, state)
         self.a_toggle_on_top.setChecked(state)
         self.raiseOnTop()
+        self._app.get_app_config().set_always_on_top(state)
+        self._app.save_all_configs_delayed()
 
     def raiseOnTop(self) -> None:
         if self.isMaximized():
@@ -113,9 +111,28 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hide()
 
     def exit(self) -> None:
-        self.close()
-        self.exitSignal.emit()
-        self.tray_icon.hide()
+        pass
+
+    def apply_geometry(self, x: int, y: int, w: int, h: int) -> None:
+        if x != 0 or y != 0:
+            x = max(0, min(self.screen().geometry().width() - w, x))
+            y = max(0, min(self.screen().geometry().height() - h, y))
+            self.move(x, y)
+        self.resize(w, h)
+
+    def apply_app_config(self) -> None:
+        self.apply_geometry(*self._app.get_app_config().get_geometry())
+        self.setAlwaysOnTop(self._app.get_app_config().get_always_on_top())
+
+    def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
+        self._app.get_app_config().set_geometry(self.get_pos_and_size())
+        self._app.save_all_configs_delayed()
+        return super().resizeEvent(a0)
+
+    def moveEvent(self, a0: QtGui.QMoveEvent) -> None:
+        self._app.get_app_config().set_geometry(self.get_pos_and_size())
+        self._app.save_all_configs_delayed()
+        return super().moveEvent(a0)
 
     # def timerEvent(self, event: QtCore.QTimerEvent) -> None:
     #     if self.is_active:
@@ -149,6 +166,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 path,
                 action_f(path)
             )
+
+        self.setWindowTitle(f'{os.path.basename(self._app.get_project_config().get_filepath())} - {const.APP_NAME}')
 
     def close_project(self) -> None:
         self.fc_last_sync = None
@@ -255,6 +274,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def change_detected(self):
         print("change detected.")
 
+    def get_pos_and_size(self) -> list[int, int, int, int]:
+        return [self.x(), self.y(), self.width(), self.height()]
+
 
 
 if __name__ == "__main__":
@@ -266,7 +288,7 @@ if __name__ == "__main__":
 
     # if len(sys.argv) != 2:
     #     print("Error: config path is not specified!")
-    #     exit()
+    #     sys.exit()
 
     # config_reader.read_config_file(sys.argv[1])
 
@@ -283,4 +305,4 @@ if __name__ == "__main__":
 
     # print(d.result())
 
-    exit(app.exec())
+    sys.exit(app.exec())

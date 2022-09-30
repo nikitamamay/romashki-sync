@@ -10,15 +10,21 @@ APP_CONFIG_FILE_PATH = os.path.join(APP_CONFIG_FOLDER, const.APP_CONFIG_FILE_NAM
 
 
 class ProjectConfig(ConfigReader):
-    def __init__(self, filepath: str = "") -> None:
+    def __init__(self) -> None:
         super().__init__({
             "local_folder_path": '',
             "gdrive_folder_path": '',
             "files_info_path": '',
             # "server_url": r"http://example.com",
             # "personal_key": r"abcdef1234567890",
-        }, filepath)
+        })
 
+    @staticmethod
+    def read_from_file(filepath: str) -> 'ProjectConfig':
+        pc = ProjectConfig()
+        pc.set_filepath(filepath)
+        pc.reload()
+        return pc
 
     def get_local_folder_path(self) -> str:
         return self._cfg["local_folder_path"]
@@ -80,8 +86,14 @@ class ProjectConfig(ConfigReader):
 
 class AppConfig(ConfigReader):
     def __init__(self) -> None:
-        super().__init__({ "last_projects": [] }, APP_CONFIG_FILE_PATH)
-        self.save()
+        super().__init__({
+            "last_projects": [],
+            "geometry": [0, 0, 800, 325],
+            "always_on_top": False,
+        })
+        self.set_filepath(APP_CONFIG_FILE_PATH)
+        self.reload()
+        print(self._cfg)
 
     def get_last_project_path(self) -> str:
         if self.has_last_project_path():
@@ -101,6 +113,18 @@ class AppConfig(ConfigReader):
     def get_last_projects_paths_list(self) -> list[str]:
         return self._cfg["last_projects"]
 
+    def get_geometry(self) -> list[int, int, int, int]:
+        return self._cfg["geometry"]
+
+    def set_geometry(self, g: list[int, int, int, int]) -> None:
+        self._cfg["geometry"].clear()
+        self._cfg["geometry"].extend(g)
+
+    def get_always_on_top(self) -> bool:
+        return self._cfg["always_on_top"]
+
+    def set_always_on_top(self, state: bool) -> None:
+        self._cfg["always_on_top"] = state
 
 
 if __name__ == "__main__":
