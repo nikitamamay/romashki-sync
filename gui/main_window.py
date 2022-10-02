@@ -35,9 +35,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.menu_recent_projects = QtWidgets.QMenu("Recent projects", self)
 
-        self.menu_file = QtWidgets.QMenu("File", self)
-        self.menu_file.addMenu(self.menu_recent_projects)
-        self.a_recent_projects = self.menubar.addMenu(self.menu_file)
+        self.menu_project = QtWidgets.QMenu("Project", self)
+        self.menu_project.addAction(icon.new_document(), "Create new", self._app.create_project)
+        self.menu_project.addAction(icon.folder(), "Open", self._app.open_project)
+        self.menu_project.addMenu(self.menu_recent_projects)
+        self.menu_project.addSeparator()
+        self.menu_project.addAction(icon.cog(), "Configure", self._app.configure)
+        self.menu_project.addSeparator()
+        self.menu_project.addAction(icon.save(), "Save", self._app.save_project)
+        self.menu_project.addAction(icon.save_as(), "Save as...", self._app.save_project_as)
+        self.menu_project.addSeparator()
+        self.menu_project.addAction(icon.cancel(), "Close project", self._app.close_project)
+        self.a_recent_projects = self.menubar.addMenu(self.menu_project)
 
         self.menu_sync = QtWidgets.QMenu("Synchronization", self)
         self.menu_sync.addAction(icon.magnifier(), "Look for changes", self.look_for_changes)
@@ -73,13 +82,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.gridlayout.addWidget(self.reprs_list_widget_newlocal, 0, 0, 1, 2)
         self.gridlayout.addWidget(self.reprs_list_widget_newgdrive, 0, 2, 1, 2)
         self.gridlayout.addWidget(self.reprs_list_widget_oldgdrive, 0, 4, 1, 2)
-        self.gridlayout.addWidget(self.le_msg, 1, 0, 1, 3)
-        self.gridlayout.addWidget(self.btn_sync, 1, 3, 1, 1)
+        # self.gridlayout.addWidget(self.le_msg, 1, 0, 1, 3)
+        self.gridlayout.addWidget(self.btn_sync, 3, 0, 1, 1)
         self.c_widget.setLayout(self.gridlayout)
 
         self.setCentralWidget(self.c_widget)
 
         self.apply_app_config()
+        self.init_recent_projects_list()
+
+        self.window_close_project()
 
     def showEvent(self, a0: QtGui.QShowEvent) -> None:
         super().showEvent(a0)
@@ -110,9 +122,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.hide()
 
-    def exit(self) -> None:
-        pass
-
     def apply_geometry(self, x: int, y: int, w: int, h: int) -> None:
         if x != 0 or y != 0:
             x = max(0, min(self.screen().geometry().width() - w, x))
@@ -139,14 +148,7 @@ class MainWindow(QtWidgets.QMainWindow):
     #         self.showChanges()
     #     return super().timerEvent(event)
 
-    def init_project(self) -> None:
-        def action_f(cfg_path__: str):
-            def f():
-                self.close_project()
-                self._app.set_project_config(config.ProjectConfig(cfg_path__))
-                self._app.init_project()
-            return f
-
+    def window_init_project(self) -> None:
         self.fc_last_sync: file_watcher.FilesCollection = file_watcher.get_last_sync(
             self._app.get_project_config().get_files_info_path(),
             self._app.get_project_config().get_gdrive_folder_path()
@@ -159,20 +161,37 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.startTimer(1000)
         self.is_project_initted = True
 
+        self.init_recent_projects_list()
+
+        self.setWindowTitle(f'{os.path.basename(self._app.get_project_config().get_filepath())} - {const.APP_NAME}')
+        self.centralWidget().setEnabled(True)
+
+        self.look_for_changes()
+
+    def window_close_project(self) -> None:
+        self.fc_last_sync = None
+        self.is_project_initted = False
+        self.reprs_list_widget_newlocal.clear_representations()
+        self.reprs_list_widget_newgdrive.clear_representations()
+        self.reprs_list_widget_oldgdrive.clear_representations()
+        self.centralWidget().setEnabled(False)
+        self.setWindowTitle(const.APP_NAME)
+
+    def init_recent_projects_list(self) -> None:
+        def action_f(cfg_path__: str):
+            def f():
+                self.window_close_project()
+                self._app.set_project_config(config.ProjectConfig.read_from_file(cfg_path__))
+                self._app.init_project()
+            return f
+
         while len(self.menu_recent_projects.actions()) > 0:
             self.menu_recent_projects.removeAction(self.menu_recent_projects.actions()[0])
-        for path in self._app.get_app_config().get_last_projects_paths_list():
+        for path in reversed(self._app.get_app_config().get_last_projects_paths_list()):
             self.menu_recent_projects.addAction(
                 path,
                 action_f(path)
             )
-
-        self.setWindowTitle(f'{os.path.basename(self._app.get_project_config().get_filepath())} - {const.APP_NAME}')
-
-    def close_project(self) -> None:
-        self.fc_last_sync = None
-        self.is_project_initted = False
-        self.close()
 
     def look_for_changes(self) -> None:
         if not self.is_project_initted: return

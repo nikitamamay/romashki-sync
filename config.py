@@ -93,7 +93,6 @@ class AppConfig(ConfigReader):
         })
         self.set_filepath(APP_CONFIG_FILE_PATH)
         self.reload()
-        print(self._cfg)
 
     def get_last_project_path(self) -> str:
         if self.has_last_project_path():

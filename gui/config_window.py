@@ -8,60 +8,44 @@ import os
 
 
 class ProjectConfigWindow(QtWidgets.QDialog):
-    def __init__(self, pconfig: config.ProjectConfig, parent = None) -> None:
+    def __init__(self, parent = None) -> None:
         super().__init__(parent)
         self.setWindowTitle('Config - ' + const.APP_NAME)
 
-        self._project_cfg = pconfig
+        self._project_cfg = None
 
         self.setWindowFlag(QtCore.Qt.WindowContextHelpButtonHint, False)
         self.resize(600, 200)
 
-        self.le4 = LineEdit(self._project_cfg.get_filepath())
+        self.le4 = LineEdit()
         self.le4.setPlaceholderText(r"C:\RomashkiData\Project123.config.json")
-        self.le4.textChanged.connect(
-            lambda: (
-                self._project_cfg.set_filepath(self.le4.text()),
-                self.check_config()
-        ))
+        self.le4.textEdited.connect(self.check_config)
 
         btn4 = QtWidgets.QPushButton(icon.file(), "Select")
         btn4.clicked.connect(self.select_file_cfg)
 
-        self.le1 = LineEdit(self._project_cfg.get_local_folder_path())
+        self.le1 = LineEdit()
         self.le1.setPlaceholderText(r"C:\RomashkiData\Project123")
-        self.le1.textChanged.connect(
-            lambda: (
-                self._project_cfg._set_local_folder_path(self.le1.text()),
-                self.check_config()
-        ))
+        self.le1.textEdited.connect(self.check_config)
 
         btn1 = QtWidgets.QPushButton(icon.folder(), "Select")
         btn1.clicked.connect(self.select_folder1)
 
-        self.le2 = LineEdit(self._project_cfg.get_gdrive_folder_path())
+        self.le2 = LineEdit()
         self.le2.setPlaceholderText(r"G:\My Drive\RomashkiData\CloudProject123")
-        self.le2.textChanged.connect(
-            lambda: (
-                self._project_cfg._set_gdrive_folder_path(self.le2.text()),
-                self.check_config()
-        ))
+        self.le2.textEdited.connect(self.check_config)
 
         btn2 = QtWidgets.QPushButton(icon.folder(), "Select")
         btn2.clicked.connect(self.select_folder2)
 
-        self.le3 = LineEdit(self._project_cfg.get_files_info_path())
+        self.le3 = LineEdit()
         self.le3.setPlaceholderText(r"C:\RomashkiData\Project123.files_info.json")
-        self.le3.textChanged.connect(
-            lambda: (
-                self._project_cfg._set_files_info_path(self.le3.text()),
-                self.check_config()
-        ))
+        self.le3.textEdited.connect(self.check_config)
 
         btn3 = QtWidgets.QPushButton(icon.file(), "Select")
         btn3.clicked.connect(self.select_file1)
 
-        btn_confirm = QtWidgets.QPushButton(icon.accept(), "Save?")
+        btn_confirm = QtWidgets.QPushButton(icon.accept(), "Save")
         btn_confirm.clicked.connect(self.confirm)
 
         layout_ = QtWidgets.QGridLayout()
@@ -81,6 +65,12 @@ class ProjectConfigWindow(QtWidgets.QDialog):
         layout_.addWidget(btn_confirm, 4, 0, 1, 3, QtCore.Qt.AlignBottom)
         self.setLayout(layout_)
 
+    def set_project_config(self, pconfig: config.ProjectConfig) -> None:
+        self._project_cfg = pconfig
+        self.le4.setText(self._project_cfg.get_filepath())
+        self.le1.setText(self._project_cfg.get_local_folder_path())
+        self.le2.setText(self._project_cfg.get_gdrive_folder_path())
+        self.le3.setText(self._project_cfg.get_files_info_path())
         self.check_config()
 
     def selectFolder(self) -> str:
@@ -139,7 +129,15 @@ class ProjectConfigWindow(QtWidgets.QDialog):
         self.le4.setText(path)
         self._project_cfg.set_filepath(path)
 
+    def read_form(self) -> None:
+        self._project_cfg.set_filepath(self.le4.text())
+        self._project_cfg._set_local_folder_path(self.le1.text())
+        self._project_cfg._set_gdrive_folder_path(self.le2.text())
+        self._project_cfg._set_files_info_path(self.le3.text())
+
     def check_config(self) -> None:
+        self.read_form()
+
         path = self.le1.text()
         if not os.path.isabs(path):
             self.le1.setState(-1, "Specify an absolute path!")
@@ -191,6 +189,7 @@ class ProjectConfigWindow(QtWidgets.QDialog):
 
     def confirm(self) -> None:
         try:
+            self.read_form()
             self._project_cfg.check()
             self.close()
         except Exception as e:
@@ -201,7 +200,8 @@ class ProjectConfigWindow(QtWidgets.QDialog):
 if __name__ == "__main__":
     app = QtWidgets.QApplication([])
 
-    w = ProjectConfigWindow(config.ProjectConfig())
+    w = ProjectConfigWindow()
+    w.set_project_config(config.ProjectConfig())
 
     w.show()
 
