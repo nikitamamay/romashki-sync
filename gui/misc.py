@@ -57,6 +57,9 @@ class icon():
         return QtGui.QIcon("icons/save.png")
     def save_as():
         return QtGui.QIcon("icons/save_as.png")
+    def cog():
+        return QtGui.QIcon("icons/cog.png")
+
 
 
 class LineEdit(QtWidgets.QLineEdit):
