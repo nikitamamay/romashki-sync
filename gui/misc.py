@@ -51,6 +51,12 @@ class icon():
         return QtGui.QIcon("icons/folder.png")
     def file():
         return QtGui.QIcon("icons/page_white_code.png")
+    def new_document():
+        return QtGui.QIcon("icons/page_white_add.png")
+    def save():
+        return QtGui.QIcon("icons/save.png")
+    def save_as():
+        return QtGui.QIcon("icons/save_as.png")
 
 
 class LineEdit(QtWidgets.QLineEdit):
