@@ -63,6 +63,15 @@ class File(IFile):
         f.size = int(d["size"])
         return f
 
+    def update(self, new_file: 'File') -> None:
+        """
+        Rewrites all data except for `parent`.
+        """
+        self.relpath = new_file.relpath
+        self.mod_ts = new_file.mod_ts
+        self.checksum = new_file.checksum
+        self.size = new_file.size
+
     def path_abs(self) -> str:
         return os.path.join(self.parent.path, self.relpath)
 
@@ -84,9 +93,10 @@ class File(IFile):
 
 
 class FilesCollection(IFilesCollection):
-    def __init__(self, path: str, auto_read: bool = True) -> None:
+    def __init__(self, path: str, auto_read: bool = True, ignore: list[str] = []) -> None:
         super().__init__()
         self.path: str = path
+        self.ignore: list[str] = ignore  # not used for now
         if auto_read:
             self.construct_files(self.path)
 
@@ -96,11 +106,12 @@ class FilesCollection(IFilesCollection):
         Recursive.
         """
         for entry in os.scandir(path):
-            if entry.is_file():
-                f = File.from_DirEntry(entry, self)
-                self.files.append(f)
-            elif entry.is_dir():
-                self.construct_files(entry.path)
+            # if not entry.path in self.ignore:
+                if entry.is_file():
+                    f = File.from_DirEntry(entry, self)
+                    self.files.append(f)
+                elif entry.is_dir():
+                    self.construct_files(entry.path)
 
     @staticmethod
     def empty(path: str):
@@ -116,6 +127,19 @@ class FilesCollection(IFilesCollection):
         self.files.clear()
         self.files.extend(files)
 
+    def update_partially(self, updated_files: list[File]) -> None:
+        """
+        Updates (adds or rewrites) only files from `updated_files`.
+        """
+        for new_f in updated_files:
+            try:
+                f = self.get_by_relpath(new_f.relpath)
+                f.update(new_f)
+                f.parent = self
+            except:
+                self.files.append(new_f)
+                new_f.parent = self
+
     def has_relpath(self, relpath: str) -> bool:
         """
         Checks whether `self.files` has a `File` object with given `relpath`.
@@ -129,10 +153,10 @@ class FilesCollection(IFilesCollection):
         """
         Returns a `File` object with given `relpath`. Throws an Exception if the object was not found.
         """
-        for f in self.files:
-            if f.relpath == relpath:
-                return f
-        raise Exception(f'No file with relative path "{relpath}" in {self}')
+        f = get_by_relpath(self.files, relpath)
+        if f == None:
+            raise Exception(f'No file with relative path "{relpath}" in {self}')
+        return f
 
     def find_newer(newer_fc: 'FilesCollection', older_fc: 'FilesCollection') -> list[File]:
         """
@@ -200,67 +224,80 @@ def save_files_info(path: str, fcs: FCs) -> None:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 
-
-class DirectoryWatcher():
-    def __init__(self, path: str, fc: FilesCollection) -> None:
-        self.path = path
-        self.fc: FilesCollection = fc
-        self.is_active = False
-        self.t: threading.Thread = None
-
-    def find_change(self) -> list[list[File]]:
-        """
-        Returns `[to_load, to_delete]`, where
-            * `to_load` - files that are newer in the directory than in the last saved state;
-            * `to_delete` - files that are older in the directory (so are newer in the saved state).
-        """
-        fc_new = self.read_directory()
-        to_load = FilesCollection.find_newer(fc_new, self.fc)
-        to_delete = FilesCollection.find_newer(self.fc, fc_new)
-        return [to_load, to_delete]
-
-    def read_directory(self) -> FilesCollection:
-        return FilesCollection(self.path)
+def get_last_sync(path_files_info: str, path_current_state: str) -> FilesCollection:
+    fcs = load_files_info(path_files_info)
+    if len(fcs) == 1:
+        return fcs[0]
+    else:
+        print(f'No saved files info, using current state of "{path_current_state}" as last_sync.')
+        fc = FilesCollection(path_current_state, True)
+        save_last_sync(path_files_info, fc)
+        return fc
 
 
-# class ThreadedTimer():
-#     def __init__(self, interval_ms: int, handlers = []) -> None:
-#         self.handlers = handlers
-#         self.interval_ms: int = interval_ms
+def save_last_sync(path_files_info: str, fc_last_sync: FilesCollection) -> None:
+    save_files_info(path_files_info, [fc_last_sync])
+    print("Saved fc_last_sync.")
 
-#         def func() -> None:
-#             while self.is_active:
-#                 print("hey")
-#                 for f in self.handlers:
-#                     f()
-#                 sleep(self.interval_ms / 1000)
-#         self.thread = threading.Thread(target=func)
 
-#     def start(self) -> None:
-#         self.is_active = True
-#         self.thread.start()
 
-#     def join(self) -> None:
-#         self.is_active = False
-#         self.thread.join()
 
+def get_by_relpath(l: list[File], relpath: str) -> File:
+    """
+    Returns a `File` object with given `relpath`. Returns `None` if there is no file with such `relpath`.
+    """
+    for f in l:
+        if f.relpath == relpath:
+            return f
+    return None
+
+
+def get_intersections(l1: list[File], l2: list[File]) -> list[File]:
+    """
+    Returns list of `File` objects that are presented in both `l1` and `l2`.
+    """
+    l: list[File] = []
+    for path_rel in map(lambda f: f.relpath, l1):
+        f = get_by_relpath(l2, path_rel)
+        if f != None:
+            l.append(f)
+    return l
 
 
 def copy_file(path_from: str, path_to: str) -> int:
     """
-    Copies file from one location to another using `win32`'s command `copy <> <>`. Returns the execution's return code.
+    Copies file from one location to another using `win32`'s command `copy <> <>`.
+
+    Returns the execution's return code.
     """
     d = os.path.dirname(path_to)
     if not os.path.exists(d) and not os.path.isdir(d):
         os.makedirs(d)
-    return os.system(f'copy "{path_from}" "{path_to}"')
+
+    cmd = f'copy "{path_from}" "{path_to}"'
+
+    return_code = os.system(cmd)
+    print(return_code, cmd)
+    return return_code
 
 
-def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> None:
+def copy_files_array(files: list[File], folder_from: str, folder_to: str) -> list[File]:
+    """
+    Copies files passed as an array `files` using `copy_file()`.
+
+    Returns list of `File` objects that are actually copied (`copy_file()`'s return code is 0).
+    """
+    copied_files: list[File] = []
     for f in files:
-        copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
+        rc = copy_file(os.path.join(folder_from, f.relpath), os.path.join(folder_to, f.relpath))
+        if rc == 0:
+            copied_files.append(f)
+    return copied_files
 
 
+# def commit(files: list[File], dw_from: DirectoryWatcher, dw_to: DirectoryWatcher) -> None:
+#     copy_files_array(files, dw_from.path, dw_to.path)
+#     dw_to.fc.update_partially(files)
 
 
 
