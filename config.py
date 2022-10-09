@@ -26,6 +26,12 @@ class ProjectConfig(ConfigReader):
         pc.reload()
         return pc
 
+    def copy(self) -> 'ProjectConfig':
+        cr = ProjectConfig()
+        cr._cfg = self._default_config.copy()
+        cr._cfg = self._cfg.copy()
+        return cr
+
     def get_local_folder_path(self) -> str:
         return self._cfg["local_folder_path"]
 
@@ -52,15 +58,15 @@ class ProjectConfig(ConfigReader):
         if not exists(path) and not is_folder_creatable(path):
             raise Exception(f'Folder "{path}" cannot be created')
 
-        if do_paths_intersect(self.get_local_folder_path(), self.get_gdrive_folder_path()):
-            raise Exception(f'Local folder\'s path and Google Drive folder\'s path are intersecting')
-
         if self.get_gdrive_folder_path() == "":
             raise Exception(f'Google Drive folder\'s path is not specified')
         path = os.path.abspath(self.get_gdrive_folder_path())
 
         if not exists(path) and not is_folder_creatable(path):
             raise Exception(f'Folder "{path}" cannot be created')
+
+        if do_paths_intersect(self.get_local_folder_path(), self.get_gdrive_folder_path()):
+            raise Exception(f'Local folder\'s path and Google Drive folder\'s path are intersecting')
 
         if self.get_files_info_path() == "":
             raise Exception(f'Files info file\'s path is not specified')
@@ -94,6 +100,12 @@ class AppConfig(ConfigReader):
         self.set_filepath(APP_CONFIG_FILE_PATH)
         self.reload()
 
+    def copy(self) -> 'AppConfig':
+        cr = AppConfig()
+        cr._cfg = self._default_config.copy()
+        cr._cfg = self._cfg.copy()
+        return cr
+
     def get_last_project_path(self) -> str:
         if self.has_last_project_path():
             return self._cfg["last_projects"][-1]
@@ -103,11 +115,9 @@ class AppConfig(ConfigReader):
         return len(self._cfg["last_projects"]) != 0
 
     def add_project_path(self, filepath: str) -> None:
-        if filepath != "":
-            if filepath in self._cfg["last_projects"]:
-                self._cfg["last_projects"].remove(filepath)
-            self._cfg["last_projects"].append(filepath)
-            self.save()
+        if filepath in self._cfg["last_projects"]:
+            self._cfg["last_projects"].remove(filepath)
+        self._cfg["last_projects"].append(filepath)
 
     def get_last_projects_paths_list(self) -> list[str]:
         return self._cfg["last_projects"]

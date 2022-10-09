@@ -68,6 +68,15 @@ class ConfigReader():
         cr.reload()
         return cr
 
+    def copy(self) -> 'ConfigReader':
+        cr = ConfigReader(self._default_config.copy())
+        cr._cfg = self._cfg.copy()
+        return cr
+
+    def assign(self, cr: 'ConfigReader') -> None:
+        self._cfg = cr._cfg.copy()
+        self._default_config = cr._default_config.copy()
+
     def save(self, config: dict = None) -> None:
         if self._filepath == "":
             raise Exception('Config filename is not specified')

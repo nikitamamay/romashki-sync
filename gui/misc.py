@@ -1,4 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
+import sys
+
+import traceback
 
 FONT_FAMILY_MONOSPACE = "Consolas"
 
@@ -7,6 +10,8 @@ PROGRAM_ABOUT = """
 <p>...</p>
 <p>&copy; Mamay Nikita, 2022.</p>
 """
+
+MSGBOX_PARENT = None
 
 class icon():
     def daisy():
@@ -74,3 +79,19 @@ class LineEdit(QtWidgets.QLineEdit):
 
 def geometry_as_list(g: QtCore.QRect) -> list[int, int, int, int]:
     return [g.left(), g.top(), g.width(), g.height()]
+
+
+def critical(msg_or_error, title = "Error!", parent = None) -> None:
+    if isinstance(msg_or_error, BaseException):
+        msg = f"""<pre>{traceback.format_exc()}</pre>"""
+    else:
+        msg = str(msg_or_error)
+    QtWidgets.QMessageBox.critical(parent, title, msg)
+
+
+
+if __name__ == "__main__":
+    try:
+        raise Exception("skdfjsdlf")
+    except Exception as e:
+        critical(e)

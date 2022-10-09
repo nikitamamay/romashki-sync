@@ -106,7 +106,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.a_toggle_on_top.setChecked(state)
         self.raiseOnTop()
         self._app.get_app_config().set_always_on_top(state)
-        self._app.save_all_configs_delayed()
+        self._app.save_app_config_delayed()
 
     def raiseOnTop(self) -> None:
         if self.isMaximized():
@@ -135,12 +135,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def resizeEvent(self, a0: QtGui.QResizeEvent) -> None:
         self._app.get_app_config().set_geometry(self.get_pos_and_size())
-        self._app.save_all_configs_delayed()
+        self._app.save_app_config_delayed()
         return super().resizeEvent(a0)
 
     def moveEvent(self, a0: QtGui.QMoveEvent) -> None:
         self._app.get_app_config().set_geometry(self.get_pos_and_size())
-        self._app.save_all_configs_delayed()
+        self._app.save_app_config_delayed()
         return super().moveEvent(a0)
 
     # def timerEvent(self, event: QtCore.QTimerEvent) -> None:
@@ -181,17 +181,21 @@ class MainWindow(QtWidgets.QMainWindow):
         def action_f(cfg_path__: str):
             def f():
                 self.window_close_project()
-                self._app.set_project_config(config.ProjectConfig.read_from_file(cfg_path__))
-                self._app.init_project()
+                try:
+                    self._app.read_project(cfg_path__)
+                    self._app.init_project()
+                except Exception as e:
+                    return critical(e)
             return f
 
         while len(self.menu_recent_projects.actions()) > 0:
             self.menu_recent_projects.removeAction(self.menu_recent_projects.actions()[0])
         for path in reversed(self._app.get_app_config().get_last_projects_paths_list()):
-            self.menu_recent_projects.addAction(
-                path,
-                action_f(path)
-            )
+            if not (path is None or path == ""):
+                self.menu_recent_projects.addAction(
+                    path,
+                    action_f(path)
+                )
 
     def look_for_changes(self) -> None:
         if not self.is_project_initted: return

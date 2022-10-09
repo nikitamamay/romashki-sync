@@ -95,9 +95,9 @@ class ProjectConfigWindow(QtWidgets.QDialog):
             return
         path = os.path.abspath(path)
         if not config.is_folder_creatable(path):
-            QtWidgets.QMessageBox.critical(self, "Error", f'Specified folder<br><code>{path}</code><br>is not creatable.')
+            return critical(f'Specified folder<br><code>{path}</code><br>is not creatable.', parent=self)
         self.le1.setText(path)
-        self._project_cfg._set_local_folder_path(path)
+        self.check_config()
 
     def select_folder2(self) -> None:
         path = self.selectFolder()
@@ -105,9 +105,9 @@ class ProjectConfigWindow(QtWidgets.QDialog):
             return
         path = os.path.abspath(path)
         if not config.is_folder_creatable(path):
-            QtWidgets.QMessageBox.critical(self, "Error", f'Specified folder<br><code>{path}</code><br>is not creatable.')
+            return critical(f'Specified folder<br><code>{path}</code><br>is not creatable.', parent=self)
         self.le2.setText(path)
-        self._project_cfg._set_gdrive_folder_path(path)
+        self.check_config()
 
     def select_file1(self) -> None:
         path = self.selectFile()
@@ -115,9 +115,9 @@ class ProjectConfigWindow(QtWidgets.QDialog):
             return
         path = os.path.abspath(path)
         if not config.is_file_creatable(path):
-            QtWidgets.QMessageBox.critical(self, "Error", f'Specified file<br><code>{path}</code><br>is not creatable.')
+            return critical(f'Specified file<br><code>{path}</code><br>is not creatable.', parent=self)
         self.le3.setText(path)
-        self._project_cfg._set_local_folder_path(path)
+        self.check_config()
 
     def select_file_cfg(self) -> None:
         path = self.selectFile()
@@ -125,9 +125,9 @@ class ProjectConfigWindow(QtWidgets.QDialog):
             return
         path = os.path.abspath(path)
         if not config.is_file_creatable(path):
-            QtWidgets.QMessageBox.critical(self, "Error", f'Specified file<br><code>{path}</code><br>is not creatable.')
+            return critical(f'Specified file<br><code>{path}</code><br>is not creatable.', parent=self)
         self.le4.setText(path)
-        self._project_cfg.set_filepath(path)
+        self.check_config()
 
     def read_form(self) -> None:
         self._project_cfg.set_filepath(self.le4.text())
@@ -193,7 +193,7 @@ class ProjectConfigWindow(QtWidgets.QDialog):
             self._project_cfg.check()
             self.close()
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Error!", f'Error: {str(e)}')
+            return critical(e, parent=self)
 
 
 
